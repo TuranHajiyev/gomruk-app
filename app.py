@@ -29,17 +29,27 @@ def _auto_match(template_col, source_cols):
 
 
 def build_parsed_df(df):
-    extra_cols = [c for c in df.columns if c != 'Malın Adı']
+    # Malın Adı-nın seçimdəki yerini tap
+    cols = list(df.columns)
+    if 'Malın Adı' not in cols:
+        return df
+    
+    mal_idx = cols.index('Malın Adı')
+    pre_cols  = cols[:mal_idx]           # Malın Adı-dan əvvəlki sütunlar
+    post_cols = cols[mal_idx+1:]         # Malın Adı-dan sonrakı sütunlar
+    # Çıxış sırası: əvvəl + [Malın Adı, Ölçü Vahidi, Miqdar] + son
+    out_cols = pre_cols + ['Malın Adı', 'Ölçü Vahidi', 'Miqdar'] + post_cols
+
     rows = []
     for _, row in df.iterrows():
         mal_raw = str(row.get('Malın Adı', '')).replace('\n', ' ').strip()
         for p in parse_mal(mal_raw):
-            new_row = {c: row[c] for c in extra_cols}
+            new_row = {c: row[c] for c in pre_cols + post_cols}
             new_row['Malın Adı']   = p['Malın Adı']
             new_row['Ölçü Vahidi'] = p['Ölçü Vahidi']
             new_row['Miqdar']      = p['Miqdar']
             rows.append(new_row)
-    out_cols = extra_cols + ['Malın Adı', 'Ölçü Vahidi', 'Miqdar']
+
     result = pd.DataFrame(rows, columns=out_cols)
     result['Miqdar'] = pd.to_numeric(result['Miqdar'], errors='coerce')
     return result
