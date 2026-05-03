@@ -72,6 +72,30 @@ def build_parsed_df(df):
 
 # ── Konfiqurasiya ──────────────────────────────────────────
 st.set_page_config(page_title="Gömrük Çeviricisi", page_icon="🛃", layout="wide")
+
+# Cədvəlin altında üfüqi scroll çubuğu həmişə görünsün
+st.markdown("""
+<style>
+[data-testid="stDataFrameResizable"] {
+    overflow-x: auto !important;
+}
+.dvn-scroller {
+    overflow-x: scroll !important;
+    scrollbar-width: auto !important;
+}
+.dvn-scroller::-webkit-scrollbar {
+    height: 10px;
+    display: block !important;
+}
+.dvn-scroller::-webkit-scrollbar-thumb {
+    background: #555;
+    border-radius: 5px;
+}
+.dvn-scroller::-webkit-scrollbar-track {
+    background: #222;
+}
+</style>
+""", unsafe_allow_html=True)
 st.title("🛃 Gömrük Hesabatı → Şablon Çeviricisi")
 st.caption("Dövlət Gömrük Komitəsinin hesabat faylını istənilən şablona çevirin.")
 
