@@ -144,7 +144,7 @@ if not selected_cols:
     st.warning("Ən azı bir sütun seçin.")
     st.stop()
 
-df_selected = df[selected_cols].copy()
+df_selected = df.reindex(columns=selected_cols).copy()  # seçim sırasını qoru
 
 # ── 4. İki tab ────────────────────────────────────────────
 st.divider()
