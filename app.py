@@ -28,26 +28,41 @@ def _auto_match(template_col, source_cols):
     return "(boş bur)"
 
 
-def build_parsed_df(df):
-    # Malın Adı-nın seçimdəki yerini tap
-    cols = list(df.columns)
-    if 'Malın Adı' not in cols:
-        return df
-    
-    mal_idx = cols.index('Malın Adı')
-    pre_cols  = cols[:mal_idx]           # Malın Adı-dan əvvəlki sütunlar
-    post_cols = cols[mal_idx+1:]         # Malın Adı-dan sonrakı sütunlar
-    # Çıxış sırası: əvvəl + [Malın Adı, Ölçü Vahidi, Miqdar] + son
-    out_cols = pre_cols + ['Malın Adı', 'Ölçü Vahidi', 'Miqdar'] + post_cols
+def _parse_miqdari(val):
+    """'14344.0 kq' → ('14344.0', 'kq') kimi ayırır."""
+    import re
+    text = str(val).strip()
+    m = re.match(r'^([\d.,]+)\s*(ədəd|əd|kq|m2|m3|yer|cüt|ton)?', text, re.IGNORECASE)
+    if m:
+        miqdar = m.group(1).replace(',', '.')
+        vahid  = m.group(2) or ''
+        if vahid.lower() in ('əd', 'ədəd'):
+            vahid = 'ədəd'
+        return miqdar, vahid.lower()
+    return '', ''
 
+
+def build_parsed_df(df):
+    cols      = list(df.columns)
+    mal_idx   = cols.index('Malın Adı') if 'Malın Adı' in cols else -1
+    pre_cols  = cols[:mal_idx] if mal_idx >= 0 else cols
+    post_cols = cols[mal_idx+1:] if mal_idx >= 0 else []
+    miqdari_col = 'Malın Miqdarı' if 'Malın Miqdarı' in cols else None
+    out_cols  = pre_cols + ['Malın Adı', 'Ölçü Vahidi', 'Miqdar'] + post_cols
     rows = []
+
     for _, row in df.iterrows():
         mal_raw = str(row.get('Malın Adı', '')).replace('\n', ' ').strip()
         for p in parse_mal(mal_raw):
             new_row = {c: row[c] for c in pre_cols + post_cols}
-            new_row['Malın Adı']   = p['Malın Adı']
-            new_row['Ölçü Vahidi'] = p['Ölçü Vahidi']
-            new_row['Miqdar']      = p['Miqdar']
+            new_row['Malın Adı'] = p['Malın Adı']
+            if (not p['Ölçü Vahidi'] or not p['Miqdar']) and miqdari_col:
+                fb_miqdar, fb_vahid    = _parse_miqdari(row[miqdari_col])
+                new_row['Ölçü Vahidi'] = p['Ölçü Vahidi'] or fb_vahid
+                new_row['Miqdar']      = p['Miqdar']      or fb_miqdar
+            else:
+                new_row['Ölçü Vahidi'] = p['Ölçü Vahidi']
+                new_row['Miqdar']      = p['Miqdar']
             rows.append(new_row)
 
     result = pd.DataFrame(rows, columns=out_cols)
