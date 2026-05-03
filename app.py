@@ -130,7 +130,7 @@ m4.metric("Bəyannamə sayı", df['GB Sorğu Nömrəsi'].nunique() if 'GB Sorğu
 if meta.get('shirket'):
     st.info(f"🏢 **{meta['shirket']}**")
 
-# ── 3. Sütun seçimi ───────────────────────────────────────
+# ── 3. Sütun seçimi və sıralama ──────────────────────────
 st.divider()
 st.subheader("1️⃣ Hansı sütunları istifadə etmək istəyirsiniz?")
 all_cols = get_clean_columns(df)
@@ -139,12 +139,40 @@ default_cols = [c for c in all_cols if c in [
     'Malın Kodu (HS)','Netto Çəki (kq)','Statistik Dəyər (USD)',
     'ƏDV (AZN)','İdxal Rüsumu (AZN)'
 ]]
-selected_cols = st.multiselect("Sütunları seçin:", options=all_cols, default=default_cols)
-if not selected_cols:
+
+# Session state-də sütun sırasını saxla
+if 'col_order' not in st.session_state:
+    st.session_state.col_order = default_cols
+
+# Sütun seçimi
+chosen = st.multiselect("Sütunları seçin:", options=all_cols, default=st.session_state.col_order)
+if not chosen:
     st.warning("Ən azı bir sütun seçin.")
     st.stop()
 
-df_selected = df.reindex(columns=selected_cols).copy()  # seçim sırasını qoru
+# Köhnə sıranı qoru, yeni əlavə olunanları sona əlavə et
+prev_order = [c for c in st.session_state.col_order if c in chosen]
+new_added  = [c for c in chosen if c not in prev_order]
+st.session_state.col_order = prev_order + new_added
+selected_cols = st.session_state.col_order
+
+# Sütun sırasını əl ilə düzənlə
+st.caption("📌 Sütun sırasını dəyişmək üçün yuxarı/aşağı düymələrindən istifadə edin:")
+reorder_cols = list(selected_cols)
+for i, col in enumerate(reorder_cols):
+    c1, c2, c3 = st.columns([6, 0.5, 0.5])
+    c1.write(f"**{i+1}.** {col}")
+    if i > 0 and c2.button("▲", key=f"up_{i}"):
+        reorder_cols[i], reorder_cols[i-1] = reorder_cols[i-1], reorder_cols[i]
+        st.session_state.col_order = reorder_cols
+        st.rerun()
+    if i < len(reorder_cols)-1 and c3.button("▼", key=f"dn_{i}"):
+        reorder_cols[i], reorder_cols[i+1] = reorder_cols[i+1], reorder_cols[i]
+        st.session_state.col_order = reorder_cols
+        st.rerun()
+
+selected_cols = st.session_state.col_order
+df_selected = df.reindex(columns=selected_cols).copy()
 
 # ── 4. İki tab ────────────────────────────────────────────
 st.divider()
