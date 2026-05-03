@@ -8,6 +8,7 @@ Dəstəklənən formatlar:
   Format 3 — "mal adı 27380 ədəd"
   Format 4 — "1.MAL 2.Şirkət 3.Mənşə 4.Miqdar:X əd"  (GLOBAL DENPA tipi)
   Format 5 — "1.Mal 2.Şirkət 3.MƏHSUL - 143800ədəd"  (IRAN tipi)
+  Format 6 — "Malın adı:mal adı  İnvoys üzrə...  İstehsalçı:..."  (ST METAL tipi)
 """
 
 import re
@@ -15,8 +16,17 @@ import re
 
 def clean_company(text: str) -> str:
     """Şirkət adı, invoys, istehsalçı qeydlərini mətnden silir."""
+    # Format 6: "Malın adı:" prefiksi sil
+    text = re.sub(r'^\s*[Mm]alın\s+adı\s*:\s*', '', text)
+    # "İnvoys üzrə ..." hissəsini sil (böyük/kiçik hərfsiz)
+    text = re.sub(r'\s*[İi]nvoys\s+üzrə.*$', '', text, flags=re.IGNORECASE | re.DOTALL)
+    # "İstehsalçı:..." hissəsini sil
+    text = re.sub(r'\s*[İi]stehsalçı\s*:.*$', '', text, flags=re.IGNORECASE | re.DOTALL)
+    # "2:YIWU..." tipli şirkət adlarını sil
     text = re.sub(r'\s*2:[A-ZƏÜÖĞIŞÇa-züöğışçə].*$', '', text, flags=re.DOTALL)
+    # "invoys üzrə..." kiçik hərflə
     text = re.sub(r'\s*invoys üzrə.*$', '', text, flags=re.IGNORECASE | re.DOTALL)
+    # "3. İstehsalçı / 4. Miqdar..." tipli
     text = re.sub(r'\s*[34]\.\s*(İstehsalçı|Miqdar|ölkə).*$', '', text,
                   flags=re.IGNORECASE | re.DOTALL)
     return text.strip().strip('.,').strip()
