@@ -1,0 +1,4 @@
+tesseract-ocr
+tesseract-ocr-aze
+tesseract-ocr-rus
+poppler-utils
