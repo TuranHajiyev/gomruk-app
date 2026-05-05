@@ -1,5 +1,5 @@
 """
-Gömrük Hesabatı → Şablon Çeviricisi  |  Streamlit web proqramı
+Gömrük Komitəsi Alətlər Dəsti  |  Streamlit web proqramı
 """
 
 import streamlit as st
@@ -7,6 +7,8 @@ import pandas as pd
 from gomruk_reader import read_gomruk_file, get_clean_columns
 from converter import fill_template, to_excel_bytes
 from mal_parser import parse_mal
+import ocr_page
+import excel_editor_page
 
 
 def _auto_match(template_col, source_cols):
@@ -71,31 +73,40 @@ def build_parsed_df(df):
 
 
 # ── Konfiqurasiya ──────────────────────────────────────────
-st.set_page_config(page_title="Gömrük Çeviricisi", page_icon="🛃", layout="wide")
+st.set_page_config(page_title="Gömrük Alətlər", page_icon="🛃", layout="wide")
 
-# Cədvəlin altında üfüqi scroll çubuğu həmişə görünsün
 st.markdown("""
 <style>
-[data-testid="stDataFrameResizable"] {
-    overflow-x: auto !important;
-}
-.dvn-scroller {
-    overflow-x: scroll !important;
-    scrollbar-width: auto !important;
-}
-.dvn-scroller::-webkit-scrollbar {
-    height: 10px;
-    display: block !important;
-}
-.dvn-scroller::-webkit-scrollbar-thumb {
-    background: #555;
-    border-radius: 5px;
-}
-.dvn-scroller::-webkit-scrollbar-track {
-    background: #222;
-}
+[data-testid="stDataFrameResizable"] { overflow-x: auto !important; }
+.dvn-scroller { overflow-x: scroll !important; scrollbar-width: auto !important; }
+.dvn-scroller::-webkit-scrollbar { height: 10px; display: block !important; }
+.dvn-scroller::-webkit-scrollbar-thumb { background: #555; border-radius: 5px; }
+.dvn-scroller::-webkit-scrollbar-track { background: #222; }
 </style>
 """, unsafe_allow_html=True)
+
+# ── Sidebar naviqasiya ─────────────────────────────────────
+with st.sidebar:
+    st.title("🛃 Gömrük Alətlər")
+    st.divider()
+    page = st.radio(
+        "Bölmə seçin:",
+        ["🛃 Gömrük Hesabatı", "📄 OCR (Şəkil → Mətn)", "📊 Excel Redaktoru"],
+        label_visibility="collapsed"
+    )
+    st.divider()
+    st.caption("v2.0 | Turan Hajiyev")
+
+# ── Səhifə yönləndirmə ────────────────────────────────────
+if page == "📄 OCR (Şəkil → Mətn)":
+    ocr_page.show()
+    st.stop()
+
+if page == "📊 Excel Redaktoru":
+    excel_editor_page.show()
+    st.stop()
+
+# ── Gömrük Hesabatı bölməsi (əsas) ───────────────────────
 st.title("🛃 Gömrük Hesabatı → Şablon Çeviricisi")
 st.caption("Dövlət Gömrük Komitəsinin hesabat faylını istənilən şablona çevirin.")
 
