@@ -125,7 +125,13 @@ def _f2_mal_adi(text):
     miq_m = re.search(r'2\.\s*[Mm]iqdar\s+(' + NUM + r')(?:\s*yer/)?\s*(?:' + NUM + r')?\s*' + VAHID, text, re.IGNORECASE)
     ad     = ad_m.group(1).strip() if ad_m else _strip_noise(text)
     miqdar = miq_m.group(1) if miq_m else ''
-    vahid  = miq_m.group(3) if miq_m else 'yer'
+    if miq_m:
+        try:
+            vahid = miq_m.group(3) or 'yer'
+        except IndexError:
+            vahid = miq_m.group(2) if miq_m.lastindex and miq_m.lastindex >= 2 else 'yer'
+    else:
+        vahid = 'yer'
     return [_row(ad, vahid, miqdar)]
 
 
