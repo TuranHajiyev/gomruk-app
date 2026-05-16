@@ -119,21 +119,17 @@ def _f2_mal_adi(text):
     """
     "1. Malın adı XXX 2. Miqdar N yer/m2"
     """
-    if not (re.match(r'^\s*1\.', text) and re.search(r'[Mm]al[ıi]n\s+ad[ıi]', text)):
+    if not (re.match(r'^\s*1\.', text) and re.search(r'[Mm]al[\u0131i]n\s+ad[\u0131i]', text)):
         return []
-    ad_m  = re.search(r'1\.\s*[Mm]al[ıi]n\s+ad[ıi][-\s]+(.+?)(?=\s*2\.|$)', text)
-    miq_m = re.search(r'2\.\s*[Mm]iqdar\s+(' + NUM + r')(?:\s*yer/)?\s*(?:' + NUM + r')?\s*' + VAHID, text, re.IGNORECASE)
-    ad     = ad_m.group(1).strip() if ad_m else _strip_noise(text)
+    ad_m = re.search(r'1\.\s*[Mm]al[\u0131i]n\s+ad[\u0131i][-\s]+(.+?)(?=\s*2\.|$)', text)
+    ad   = ad_m.group(1).strip() if ad_m else _strip_noise(text)
+    # Miqdar + vahid axtarışı — vahid olmaya da bilər
+    miq_m = re.search(
+        r'2\.\s*[Mm]iqdar\s+([\d]+(?:[.,]\d+)?)(?:\s*yer/)?(?:\s*[\d]+(?:[.,]\d+)?)?\s*(\u0259d\u0259d|\u0259d\b|kq\b|m2\b|m3\b|yer\b|c\u00fct\b|ton\b)?',
+        text, re.IGNORECASE)
     miqdar = miq_m.group(1) if miq_m else ''
-    if miq_m:
-        try:
-            vahid = miq_m.group(3) or 'yer'
-        except IndexError:
-            vahid = miq_m.group(2) if miq_m.lastindex and miq_m.lastindex >= 2 else 'yer'
-    else:
-        vahid = 'yer'
+    vahid  = (miq_m.group(2) or 'yer') if miq_m else 'yer'
     return [_row(ad, vahid, miqdar)]
-
 
 def _f3_global(text):
     """
