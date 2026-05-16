@@ -133,20 +133,21 @@ def _f2_mal_adi(text):
 
 def _f3_global(text):
     """
-    "1.MAL 2.Şirkət 3.Mənşə 4.Miqdar:N"
+    "1.MAL 2.Şirkət 3.Mənşə 4.Ümumi miqdar:N / 4.Miqdar:N"
     """
     if not re.match(r'^\s*1\.', text):
         return []
-    if re.search(r'[Mm]al[ıi]n\s+ad[ıi]', text):
+    if re.search(r'[Mm]al[\u0131i]n\s+ad[\u0131i]', text):
         return []
-    ad_m  = re.match(r'^\s*1\.\s*(.+?)\s*2\.', text)
-    miq_m = re.search(r'[Uu]mumi\s+miqdar\s*:\s*(' + NUM + r')\s*' + VAHID + r'?', text, re.IGNORECASE)
-    if not miq_m:
-        miq_m = re.search(r'4\.\s*[Mm]iqdar\s*:\s*(' + NUM + r')\s*' + VAHID + r'?', text, re.IGNORECASE)
+    ad_m = re.match(r'^\s*1\.\s*(.+?)\s*2\.', text)
     if not ad_m:
         return []
+    # "4.Ümumi miqdar:240 əd" və ya "4.Miqdar:240" və ya "Ümumi miqdar:240"
+    miq_m = re.search(
+        r'(?:[Üü]mumi\s+)?[Mm]iqdar\s*:\s*([\d]+(?:[.,]\d+)?)\s*(\u0259d\u0259d|\u0259d\b|kq\b|m2\b|m3\b|yer\b)?',
+        text, re.IGNORECASE)
     miqdar = miq_m.group(1) if miq_m else ''
-    vahid  = (miq_m.group(3) if miq_m and miq_m.lastindex and miq_m.lastindex >= 3 and miq_m.group(3) else 'ədəd')
+    vahid  = (miq_m.group(2) or '\u0259d\u0259d') if miq_m else '\u0259d\u0259d'
     return [_row(ad_m.group(1), vahid, miqdar)]
 
 
