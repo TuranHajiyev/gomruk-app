@@ -5,252 +5,207 @@ parse_mal(metn) → [{'Malın Adı': str, 'Ölçü Vahidi': str, 'Miqdar': str}]
 
 import re
 
-# ── Sabitlər ─────────────────────────────────────────────
-VAHID_PAT = r'(ədəd|əd\b|kq\b|m2\b|m3\b|yer\b|cüt\b|ton\b|rulon\b|m\b)'
-NUM_PAT   = r'[\d]+(?:[.,]\d+)?'
+NUM   = r'[\d]+(?:[.,]\d+)?'
+VAHID = r'(ədəd|əd\b|kq\b|m2\b|m3\b|yer\b|cüt\b|ton\b|rulon\b)'
 
-# Silinəcək sonluqlar — invoys, istehsalçı, şirkət adları
-_STRIP_PATTERNS = [
-    r'\s*[İi]nvoys\s+(üzrə|mövqeyi|üzrə\s+mal\s+mövqeyi).*$',
-    r'\s*[İi]nvoyd?[aə]k[ıi]\s+mövqeyi.*$',
-    r'\s*invoys?\s*mövqeyi.*$',
-    r'\s*invo[yp]s?\s+mövqeyi.*$',
-    r'\s*[İi]nvo[yp][cs]e?\s+[Nn]\s*\d+.*$',
-    r'\s*[İi]NVOYS.*$',
-    r'\s*İNVOİCE.*$',
-    r'\s*[İi]nvoyv?\s+mövqeyi.*$',
-    r'\s*ijnvoys.*$',
-    r'\s*invpys.*$',
-    r'\s*invoyys.*$',
-    r'\s*2:\s*[A-ZƏÜÖĞIŞÇa-züöğışçə].*$',
-    r'\s*2:\s*PARADI.*$',
+# ── Təmizləmə ─────────────────────────────────────────────
+
+_NOISE = [
+    r'\s*[İi]nvoys?\s+(üzrə|mövqeyi|üzrə\s+mal\s+mövqeyi).*$',
+    r'\s*[İi]nvoys?\s*mövqeyi.*$',
+    r'\s*[İi]nvoyd?[aə]k[ıi]\s*mövqeyi.*$',
+    r'\s*[İi][Nn][Vv][Oo][Yy][Ss]?\s+[Mm]övqeyi.*$',
+    r'\s*[İi][Nn][Vv][Oo][İi][Cc][Ee]?\s+[Nn]\s*\d+.*$',
+    r'\s*2\s*:\s*[A-ZƏÜÖĞIŞÇa-züöğışçə].*$',
     r'\s*[İi]stehsalçı.*$',
     r'\s*[34]\.\s*(İstehsalçı|Miqdar|ölkə|Ticarət).*$',
-    r'\s*Ticarət edən şirkət.*$',
-    r'\s*Mənşə:.*$',
-    r'\s*Model:.*$',
-    r'\s*Cəmi:.*$',
-    r'\s*INVOICE.*$',
+    r'\s*Ticarət\s+edən.*$',
+    r'\s*Mənşə\s*:.*$',
+    r'\s*Model\s*:.*$',
+    r'\s*Cəmi\s*:.*$',
+    r'\s*INVOICE\s+N.*$',
 ]
 
-def _strip_noise(text: str) -> str:
-    """Şirkət adı, invoys, istehsalçı qeydlərini silir."""
-    # "Malın adı:" prefiksi
-    text = re.sub(r'^\s*[Mm]alın\s+adı\s*[-:]\s*', '', text)
-    text = re.sub(r'^\s*[Mm]alın\s+adı\s*', '', text)
-    for pat in _STRIP_PATTERNS:
-        text = re.sub(pat, '', text, flags=re.IGNORECASE | re.DOTALL)
+def _strip_noise(text):
+    text = re.sub(r'^\s*[Mm]al[ıi]n\s+ad[ıi]\s*[-:]\s*', '', text)
+    text = re.sub(r'^\s*[Mm]al[ıi]n\s+ad[ıi]\s+', '', text)
+    for p in _NOISE:
+        text = re.sub(p, '', text, flags=re.IGNORECASE | re.DOTALL)
     return text.strip()
 
-
-def _clean_name(name: str) -> str:
-    """Ad sonundakı nöqtə, vergül, slaş, yer N, boşluq sil."""
+def _clean(name):
+    """Ad sonundakı lazımsız simvolları sil."""
     name = name.strip()
-    # "yer N," tipini sil — "TÜSTÜ VERƏN yer 4," → "TÜSTÜ VERƏN"
-    name = re.sub(r'\s+yer\s+\d+\s*,?\s*$', '', name, flags=re.IGNORECASE)
-    name = re.sub(r'\s+yer\s+\d+\s*$', '', name, flags=re.IGNORECASE)
-    # Sondakı - / . , ; boşluqları sil
-    name = re.sub(r'[\s\-/.,;]+$', '', name)
-    # "1." prefiksi sil (sətrin əvvəlindəki)
-    name = re.sub(r'^\d+\.\s*', '', name)
-    # "1:" prefiksi sil
-    name = re.sub(r'^\d+:\s*', '', name)
+    # "kg " və ya "kq " prefiksi (çoxlu mal ayırıcısından qalan)
+    name = re.sub(r'^k[qg]\s+', '', name, flags=re.IGNORECASE)
+    # "yer N" və ya "yer N," sonunda → sil
+    name = re.sub(r'\s+yer\s+\d+[\s,]*$', '', name, flags=re.IGNORECASE)
+    # Sondakı - / . , ; boşluqlar
+    name = re.sub(r'[\s\-/.,;:]+$', '', name)
+    # Əvvəldəki "N." və ya "N:" prefiksi (1. 2. 1: 2:)
+    name = re.sub(r'^\s*\d+\s*[.:]\s*', '', name)
+    # Əvvəldəki tire
+    name = re.sub(r'^\s*[-–]\s*', '', name)
     return name.strip()
 
+def _vahid(v):
+    v = (v or '').strip().lower()
+    return 'ədəd' if v in ('əd', 'ədəd') else v
 
-def _norm_vahid(v: str) -> str:
-    v = v.strip().lower()
-    return 'ədəd' if v in ('əd', 'ədəd', 'ədəd.') else v
+def _row(name, vahid='', miqdar=''):
+    return {
+        'Malın Adı':   _clean(name),
+        'Ölçü Vahidi': _vahid(vahid),
+        'Miqdar':      str(miqdar).replace(',', '.') if miqdar else ''
+    }
 
 
-def _make(name, vahid='', miqdar=''):
-    return {'Malın Adı': _clean_name(name),
-            'Ölçü Vahidi': _norm_vahid(vahid),
-            'Miqdar': str(miqdar).replace(',', '.') if miqdar else ''}
+# ── Format funksiyaları ───────────────────────────────────
 
-
-# ── Format tanıyıcılar ────────────────────────────────────
-
-def _fmt1(text):
+def _f_invoice_caps(text):
     """
-    Format 1: "1:MAL - 900 əd., / 134 kq  MAL2 - 120 əd.,"
-    və ya    "1: MAL -2000 əd.,"
+    "1.ƏTİR QABI 30240 ƏDƏD / KQ- İNVOİCE N 1  2.ŞÜŞƏ BUTULKA 600 ƏDƏD/ KQ-İNVOİCE N 3"
+    İNVOİCE N X ilə bloklara bölür.
+    """
+    if not re.search(r'İNVOİCE|INVOICE', text, re.IGNORECASE):
+        return []
+    blocks = re.split(r'-?\s*(?:İNVOİCE|INVOICE)\s+N\s*\d+\s*', text, flags=re.IGNORECASE)
+    results = []
+    for block in blocks:
+        block = re.sub(r'^\s*\d+\.\s*', '', block.strip())
+        if not block:
+            continue
+        m = re.match(
+            r'^([A-ZƏÜÖĞIŞÇa-züöğışçə].+?)\s+(' + NUM + r')\s+(ƏDƏD|ƏD|əd|ədəd)\b',
+            block, re.IGNORECASE)
+        if m:
+            results.append(_row(m.group(1), 'ədəd', m.group(2)))
+    return results
+
+
+def _f_bolt(text):
+    """
+    "1:BOLT 173qutu/54960əd.,/4761kq"
+    "1:ŞRUP 1189qutu/25830 əd.,/16256kq"
+    """
+    m = re.match(
+        r'^\s*1\s*:\s*([A-ZƏÜÖĞIŞÇa-züöğışçə\s]+?)'
+        r'\s+\d+\s*qutu\s*/\s*(' + NUM + r')\s*(əd|ədəd)',
+        text, re.IGNORECASE)
+    if m:
+        return [_row(m.group(1), 'ədəd', m.group(2))]
+    return []
+
+
+def _f1_colon(text):
+    """
+    "1:MAL - 900 əd., / 134 kq  MAL2 - 300 əd.,"
     """
     if not re.match(r'^\s*1\s*:', text):
         return []
     clean = _strip_noise(text)
     clean = re.sub(r'^\s*1\s*:\s*', '', clean)
-
-    # Hər mövqeyi ayır: AD - SAYI vahid [/ çəki kq]
     pat = (r'([A-ZƏÜÖĞIŞÇa-züöğışçə"\(][^-]*?)'
-           r'\s*-\s*'
-           r'({num})\s*(?:qutu/)?(?:{num})?({vahid})[.,]?\s*'
-           r'(?:/\s*{num}\s*kq)?'.format(num=NUM_PAT, vahid=VAHID_PAT[1:-1]))
-    matches = list(re.finditer(pat, clean, re.IGNORECASE))
-    if not matches:
-        return []
+           r'\s*-\s*(' + NUM + r')\s*' + VAHID + r'[.,]?'
+           r'(?:\s*/\s*' + NUM + r'\s*kq)?')
     results = []
-    for m in matches:
+    for m in re.finditer(pat, clean, re.IGNORECASE):
         ad = re.sub(r'^kq\s+', '', m.group(1).strip())
-        # "173qutu/54960" tipli — əd. sayını götür
-        miq_raw = m.group(2)
-        vahid   = m.group(3)
-        # "BOLT 173qutu/54960əd" — böyük sayı götür
-        if 'qutu' in miq_raw.lower():
-            miq_raw = re.search(r'/(\d+)', miq_raw)
-            miq_raw = miq_raw.group(1) if miq_raw else ''
-        results.append(_make(ad, vahid, miq_raw))
+        results.append(_row(ad, m.group(3), m.group(2)))
     return results
 
 
-def _fmt2(text):
+def _f2_mal_adi(text):
     """
-    Format 2: "1. Malın adı XXX 2. Miqdar N yer/m2"
+    "1. Malın adı XXX 2. Miqdar N yer/m2"
     """
-    if not (re.match(r'^\s*1\.', text) and 'Malın adı' in text):
+    if not (re.match(r'^\s*1\.', text) and re.search(r'[Mm]al[ıi]n\s+ad[ıi]', text)):
         return []
-    ad_m  = re.search(r'1\.\s*Malın adı[-\s]+(.+?)(?=\s*2\.|$)', text, re.IGNORECASE)
-    miq_m = re.search(r'2\.\s*Miqdar\s+({num})\s*(?:yer/)?({num})?\s*({vahid})'.format(
-                       num=NUM_PAT, vahid=VAHID_PAT[1:-1]), text, re.IGNORECASE)
+    ad_m  = re.search(r'1\.\s*[Mm]al[ıi]n\s+ad[ıi][-\s]+(.+?)(?=\s*2\.|$)', text)
+    miq_m = re.search(r'2\.\s*[Mm]iqdar\s+(' + NUM + r')(?:\s*yer/)?\s*(?:' + NUM + r')?\s*' + VAHID, text, re.IGNORECASE)
     ad     = ad_m.group(1).strip() if ad_m else _strip_noise(text)
     miqdar = miq_m.group(1) if miq_m else ''
     vahid  = miq_m.group(3) if miq_m else 'yer'
-    return [_make(ad, vahid, miqdar)]
+    return [_row(ad, vahid, miqdar)]
 
 
-def _fmt3_global(text):
+def _f3_global(text):
     """
-    Format 3: "1.MAL 2.Ticarət... 3.Mənşə... 4.Miqdar:N əd"
-              "1.MAL 2.GLOBAL... 4.Ümumi miqdar:N əd"
+    "1.MAL 2.Şirkət 3.Mənşə 4.Miqdar:N"
     """
     if not re.match(r'^\s*1\.', text):
         return []
+    if re.search(r'[Mm]al[ıi]n\s+ad[ıi]', text):
+        return []
     ad_m  = re.match(r'^\s*1\.\s*(.+?)\s*2\.', text)
-    miq_m = re.search(r'[Uu]mumi\s+miqdar\s*[:]\s*({num})\s*({vahid})?'.format(
-                       num=NUM_PAT, vahid=VAHID_PAT[1:-1]), text, re.IGNORECASE)
+    miq_m = re.search(r'[Uu]mumi\s+miqdar\s*:\s*(' + NUM + r')\s*' + VAHID + r'?', text, re.IGNORECASE)
     if not miq_m:
-        miq_m = re.search(r'4\.\s*Miqdar\s*[:]\s*({num})\s*({vahid})?'.format(
-                           num=NUM_PAT, vahid=VAHID_PAT[1:-1]), text, re.IGNORECASE)
+        miq_m = re.search(r'4\.\s*[Mm]iqdar\s*:\s*(' + NUM + r')\s*' + VAHID + r'?', text, re.IGNORECASE)
     if not ad_m:
         return []
-    ad     = ad_m.group(1).strip()
     miqdar = miq_m.group(1) if miq_m else ''
-    vahid  = miq_m.group(2) if (miq_m and miq_m.lastindex >= 2 and miq_m.group(2)) else 'ədəd'
-    return [_make(ad, vahid, miqdar)]
+    vahid  = (miq_m.group(3) if miq_m and miq_m.lastindex and miq_m.lastindex >= 3 and miq_m.group(3) else 'ədəd')
+    return [_row(ad_m.group(1), vahid, miqdar)]
 
 
-def _fmt4_iran(text):
+def _f4_iran(text):
     """
-    Format 4: "1.MAL 2.IRAN CO. 3.AD - 143800ədəd(719rulon)"
+    "1.MAL 2.Şirkət 3.AD - 143800ədəd"
     """
     if not re.match(r'^\s*1\.', text):
         return []
     ad_m  = re.match(r'^\s*1\.\s*(.+?)\s*2\.', text)
-    miq_m = re.search(r'({num})\s*(ədəd|əd)\s*(?:\(\d+rulon\))?'.format(num=NUM_PAT),
-                       text, re.IGNORECASE)
+    miq_m = re.search(r'(' + NUM + r')\s*(ədəd|əd)\b', text, re.IGNORECASE)
     if not ad_m or not miq_m:
         return []
-    return [_make(ad_m.group(1), 'ədəd', miq_m.group(1))]
+    return [_row(ad_m.group(1), 'ədəd', miq_m.group(1))]
 
 
-def _fmt5_simple(text):
+def _f5_yer(text):
     """
-    Format 5: "mal adı SAYI vahid [m3]"
-    Nümunə: "plastmasdan kranlar 11700 ədəd"
-             "led spot lampaları-4000 ədəd / 147.6 kq"
-             "çılçıraqlar-3933 ədəd / 11608.20 kq"
-    Çoxlu mal: "led spot-4000 ədəd, led lamp-1000 ədəd 5000 ədəd m3"
+    "MAL yer N, SAYI əd, KQ  MAL2 yer N, SAYI əd, KQ invoys..."
+    "PLASTİK LAPATKA yer 20, 750 əd, 394 kg invoys..."
     """
-    # Çoxlu mal: "AD-N vahid, AD2-N vahid" tipli sətir
-    multi_pat = (r'([a-zA-ZƏÜÖĞIŞÇəüöğışçÇ][^,\-]+?)'
-                 r'[-–]\s*({num})\s*({vahid})[,\s]'.format(
-                  num=NUM_PAT, vahid=VAHID_PAT[1:-1]))
-    multi = list(re.finditer(multi_pat, text, re.IGNORECASE))
-    if len(multi) >= 2:
-        results = []
-        for m in multi:
-            results.append(_make(m.group(1), m.group(3), m.group(2)))
-        return results
-
-    # Tək mal: "ad-SAYI vahid" və ya "ad SAYI vahid"
-    m = re.match(
-        r'^(.+?)[-–\s]+({num})\s*(?:qutu/)?(?:{num}/)?\s*({vahid})'.format(
-         num=NUM_PAT, vahid=VAHID_PAT[1:-1]),
-        text, re.IGNORECASE)
-    if m:
-        return [_make(m.group(1), m.group(3), m.group(2))]
-    return []
-
-
-def _fmt6_invoys(text):
-    """
-    Format 6: "MAL SAYI əd, invoys mövqeyi-N"
-              "MAL yer N, SAYI əd, ÇƏKI kg invoys..."
-    Birdən çox mal: "MAL1 yer N, N1 əd, kg  MAL2 yer N, N2 əd, kg invoys..."
-    """
-    # Şirkət/invoys hissəsini sil
     clean = _strip_noise(text)
-
-    # Çoxlu mal "MAL yer N, SAYI əd, ..." tipli
-    multi_pat = (r'([A-ZƏÜÖĞIŞÇa-züöğışçə][A-ZƏÜÖĞIŞÇa-züöğışçə\s\(\)\"]+?)'
-                 r'(?:\s+yer\s+\d+\s*,)?\s+({num})\s+(əd|ədəd|cüt)\s*[,\.]?'.format(num=NUM_PAT))
-    multi = list(re.finditer(multi_pat, clean, re.IGNORECASE))
-    if len(multi) >= 2:
-        return [_make(m.group(1), m.group(3), m.group(2)) for m in multi]
-
-    # Tək mal: "MAL SAYI əd,"
+    # Çoxlu mal: "MAL yer N, SAYI əd," tipli
+    multi = re.findall(
+        r'([A-ZƏÜÖĞIŞÇa-züöğışçə][A-ZƏÜÖĞIŞÇa-züöğışçə\s]+?)'
+        r'(?:\s+yer\s+\d+\s*,)?\s+(' + NUM + r')\s+(əd|ədəd|cüt)\s*[,.]?',
+        clean, re.IGNORECASE)
+    if multi:
+        return [_row(m[0], m[2], m[1]) for m in multi]
+    # Tək mal
     m = re.match(
-        r'^([A-ZƏÜÖĞIŞÇa-züöğışçə].+?)\s+({num})\s+(əd|ədəd|cüt)\s*[,\.]?'.format(num=NUM_PAT),
+        r'^([A-ZƏÜÖĞIŞÇa-züöğışçə].+?)(?:\s+yer\s+\d+\s*,)?\s+(' + NUM + r')\s+(əd|ədəd|cüt)\b',
         clean, re.IGNORECASE)
     if m:
-        return [_make(m.group(1), m.group(3), m.group(2))]
-
-    # Miqdar yoxdur — yalnız ad var (LAQONDA invoys mövqeyi-27)
-    if clean.strip():
-        return [_make(clean)]
+        return [_row(m.group(1), m.group(3), m.group(2))]
+    # Miqdar yoxdur — yalnız ad
+    if clean:
+        return [_row(clean)]
     return []
 
 
-def _fmt7_invoice_caps(text):
+def _f6_simple(text):
     """
-    Format 7: "1.ƏTİR QABI 30240 ƏDƏD / 5278 KQ- İNVOİCE N 1  2.ŞÜŞƏ BUTULKA 600 ƏDƏD/ 107 KQ"
-    Hər "N.AD SAYI ƏDƏD ... İNVOİCE N X" blokunu ayırır.
+    "led spot lampaları-4000 ədəd / 147.6 kq, led lampalar-1000 ədəd"
+    "çılçıraqlar-3933 ədəd / 11608.20 kq, bralar-1140 ədəd"
+    "plastmasdan kranlar 11700 ədəd"
     """
-    results = []
-    # "İNVOİCE N X" ayırıcı ilə bloklara böl
-    blocks = re.split(r'-?\s*(?:İNVOİCE|INVOICE)\s+N\s*\d+\s*', text, flags=re.IGNORECASE)
-    for block in blocks:
-        block = block.strip()
-        if not block:
-            continue
-        # "N." prefiksini sil
-        block = re.sub(r'^\d+\.\s*', '', block).strip()
-        m = re.match(
-            r'^([A-ZƏÜÖĞIŞÇa-züöğışçə].+?)\s+([\d]+(?:[.,]\d+)?)\s+(ƏDƏD|ƏD|əd|ədəd)\b',
-            block, re.IGNORECASE)
-        if m:
-            results.append(_make(m.group(1).strip(), 'ədəd', m.group(2)))
-    if results:
-        return results
-    # Fallback: tək mal "AD SAYI ƏDƏD" KQ olmadan
-    m = re.match(r'^([A-ZƏÜÖĞIŞÇa-züöğışçə].+?)\s+([\d]+(?:[.,]\d+)?)\s+(ƏDƏD|ƏD)\b', text, re.IGNORECASE)
-    if m:
-        return [_make(m.group(1).strip(), 'ədəd', m.group(2))]
-    return []
-
-def _fmt8_bolt(text):
-    """
-    Format 8: "1:BOLT  173qutu/54960əd.,/4761kq"
-              "1:ŞRUP 1189qutu/25830 əd.,/16256kq"
-    """
-    if not re.match(r'^\s*1\s*:', text):
-        return []
+    # Çoxlu mal: "ad-N vahid, ad2-N vahid"
+    multi = re.findall(
+        r'([a-zA-ZƏÜÖĞIŞÇəüöğışçÇ][^\d,]+?)'
+        r'[-–\s]+(' + NUM + r')\s*' + VAHID + r'[,\s]',
+        text, re.IGNORECASE)
+    if len(multi) >= 2:
+        return [_row(m[0], m[2], m[1]) for m in multi
+                if not re.match(r'^k[qg]\b', m[0].strip(), re.IGNORECASE)]
+    # Tək mal
     m = re.match(
-        r'^\s*1\s*:\s*([A-ZƏÜÖĞIŞÇa-züöğışçə\s]+?)'
-        r'\s+\d+qutu/(\d+)\s*(əd|ədəd)',
+        r'^(.+?)[-–\s]+(' + NUM + r')\s*(?:qutu/)?(?:' + NUM + r'/)?\s*' + VAHID,
         text, re.IGNORECASE)
     if m:
-        return [_make(m.group(1), m.group(3), m.group(2))]
+        return [_row(m.group(1), m.group(3), m.group(2))]
     return []
 
 
@@ -260,39 +215,38 @@ def parse_mal(raw_text: str) -> list:
     text = str(raw_text).replace('\n', ' ').replace('\t', ' ').strip()
     text = re.sub(r'\s{2,}', ' ', text)
 
-    # BOLT/ŞRUP tipli (qutu/əd formatı) — ən əvvəl yoxla
-    r = _fmt8_bolt(text);          
+    # 1. İNVOİCE böyük hərfli bloklar (ƏTİR QABI tipi)
+    r = _f_invoice_caps(text)
     if r: return r
 
-    # "1:MAL - N əd," tipli
-    r = _fmt1(text);               
+    # 2. BOLT/ŞRUP — "1:AD Nqutu/Məd"
+    r = _f_bolt(text)
     if r: return r
 
-    # "1. Malın adı ... 2. Miqdar"
-    r = _fmt2(text);               
+    # 3. "1:MAL - N əd.,"
+    r = _f1_colon(text)
     if r: return r
 
-    # İNVOİCE böyük hərflə — fmt3_global-dan qabaq, fmt1-dən sonra
-    if 'İNVOİCE' in text.upper() or 'INVOICE' in text.upper():
-        r = _fmt7_invoice_caps(text)
-        if r and all(p['Miqdar'] for p in r): return r
-
-    # GLOBAL DENPA / MK GROUP tipli
-    r = _fmt3_global(text);        
+    # 4. "1. Malın adı ... 2. Miqdar"
+    r = _f2_mal_adi(text)
     if r: return r
 
-    # IRAN tipli (3.AD - Nədəd)
-    r = _fmt4_iran(text);          
+    # 5. "1.MAL 2.Şirkət ... 4.Miqdar:N" (GLOBAL tipi)
+    r = _f3_global(text)
     if r: return r
 
-    # "ad SAYI vahid" sadə format + çoxlu mal "ad-N vahid, ad2-N vahid"
-    r = _fmt5_simple(text);        
+    # 6. "1.MAL 2.Şirkət ... Nədəd" (IRAN tipi)
+    r = _f4_iran(text)
     if r: return r
 
-    # invoys mövqeyi tipli
-    r = _fmt6_invoys(text);        
+    # 7. "MAL yer N, SAYI əd" tipli + invoys
+    if re.search(r'yer\s+\d+|invoys|mövqeyi', text, re.IGNORECASE):
+        r = _f5_yer(text)
+        if r: return r
+
+    # 8. Sadə: "ad SAYI vahid" / çoxlu "ad-N vahid, ad2-N vahid"
+    r = _f6_simple(text)
     if r: return r
 
-    # Heç biri uyğun gəlmədi — mətni təmizlə, saxla
-    clean = _strip_noise(text)
-    return [_make(clean)]
+    # 9. Heç biri uyğun gəlmədi — mətni təmizlə
+    return [_row(_strip_noise(text))]
