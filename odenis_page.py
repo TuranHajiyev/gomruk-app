@@ -272,7 +272,7 @@ def show():
                  'Ödənilən Məbləğ','Silinən Məbləğ','Bəyannamə','Uyğunluq']
 
     def highlight(row):
-        tip = row['_tip']
+        tip = df.loc[row.name, '_tip']
         if tip == 'madaxil':
             return ['background-color:#1F4E79;color:white;font-weight:bold'] * len(row)
         elif tip == 'cem':
@@ -281,10 +281,7 @@ def show():
             return ['background-color:#EBF3FB'] * len(row)
 
     st.dataframe(
-        df[show_cols].style.apply(
-            lambda row: highlight(df.loc[row.name]),
-            axis=1
-        ),
+        df[show_cols].style.apply(highlight, axis=1),
         use_container_width=True,
         height=500
     )
