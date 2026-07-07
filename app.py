@@ -9,6 +9,7 @@ from converter import fill_template, to_excel_bytes
 from mal_parser import parse_mal
 import ocr_page
 import excel_editor_page
+import odenis_page
 
 
 def _auto_match(template_col, source_cols):
@@ -91,13 +92,17 @@ with st.sidebar:
     st.divider()
     page = st.radio(
         "Bölmə seçin:",
-        ["🛃 Gömrük Hesabatı", "📄 OCR (Şəkil → Mətn)", "📊 Excel Redaktoru"],
+        ["🛃 Gömrük Hesabatı", "💳 Ödəniş Uyğunlaşdırma", "📄 OCR (Şəkil → Mətn)", "📊 Excel Redaktoru"],
         label_visibility="collapsed"
     )
     st.divider()
     st.caption("v2.0 | Turan Hajiyev")
 
 # ── Səhifə yönləndirmə ────────────────────────────────────
+if page == "💳 Ödəniş Uyğunlaşdırma":
+    odenis_page.show()
+    st.stop()
+
 if page == "📄 OCR (Şəkil → Mətn)":
     ocr_page.show()
     st.stop()
