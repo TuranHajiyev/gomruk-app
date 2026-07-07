@@ -162,7 +162,6 @@ def build_uygun_rows(madaxil_df, mexaric_df, yalniz_odenilib):
 
 def to_excel_bytes(df):
     """Qruplaşdırılmış cədvəli Excel-ə yaz."""
-    wb = load_workbook(BytesIO(b''))  # boş
     from openpyxl import Workbook
     wb = Workbook()
     ws = wb.active
@@ -271,20 +270,40 @@ def show():
     show_cols = ['Tarix','Ödənişin Təyinatı','Əməliyyat Növü',
                  'Ödənilən Məbləğ','Silinən Məbləğ','Bəyannamə','Uyğunluq']
 
-    def highlight(row):
-        tip = df.loc[row.name, '_tip']
-        if tip == 'madaxil':
-            return ['background-color:#1F4E79;color:white;font-weight:bold'] * len(row)
-        elif tip == 'cem':
-            return ['background-color:#D6E4F0;font-weight:bold'] * len(row)
-        else:
-            return ['background-color:#EBF3FB'] * len(row)
+    # HTML cədvəl — rəngli göstəriş
+    def _render_html(df):
+        rows_html = ""
+        for _, row in df.iterrows():
+            tip = row['_tip']
+            if tip == 'madaxil':
+                tr_style = 'background:#1F4E79;color:white;font-weight:bold'
+            elif tip == 'cem':
+                tr_style = 'background:#D6E4F0;font-weight:bold;color:#1F4E79'
+            else:
+                tr_style = 'background:#EBF3FB;color:#111'
+            cells_html = ""
+            for col in show_cols:
+                val = row[col]
+                if isinstance(val, float) and val == val:
+                    val = f"{val:,.2f}"
+                elif val is None or (isinstance(val, float) and val != val):
+                    val = ""
+                td_align = "right" if col in ("Ödənilən Məbləğ","Silinən Məbləğ") else "left"
+                cells_html += f'<td style="padding:5px 10px;border:1px solid #ccc;text-align:{td_align}">{val}</td>'
+            rows_html += f'<tr style="{tr_style}">{cells_html}</tr>'
 
-    st.dataframe(
-        df[show_cols].style.apply(highlight, axis=1),
-        use_container_width=True,
-        height=500
-    )
+        header_html = "".join(
+            f'<th style="padding:6px 10px;background:#0F2D4A;color:white;border:1px solid #ccc">{c}</th>'
+            for c in show_cols
+        )
+        return f"""
+        <div style="overflow-x:auto;margin-bottom:16px">
+        <table style="border-collapse:collapse;width:100%;font-size:13px;font-family:Arial">
+        <thead><tr>{header_html}</tr></thead>
+        <tbody>{rows_html}</tbody>
+        </table></div>"""
+
+    st.html(_render_html(df))
 
     # Statistika
     cem_rows = df[df['_tip']=='cem']
